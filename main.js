@@ -1,19 +1,31 @@
+const exec = require("child_process").execSync;
 const { app, BrowserWindow, ipcMain } = require("electron");
 const { logger, rendererLogger } = require("./js/logger");
-const config = require("./config/config");
 const telebot = require("./js/bot");
 const imagewatcher = require("./js/imageWatchdog");
 const inputhandler = require("./js/inputHandler");
 const voicerecorder = require("./js/voiceRecorder");
 const schedules = require("./js/schedules");
+const CommandExecutor = require("./js/systemCommands");
+const config = require("./js/configuration");
+
+const screen = require(config.screenConfig);
+logger.info("Configuring for: " +  screen.name);
 
 //create global variables
 global.config = config;
+global.screen = screen;
 global.rendererLogger = rendererLogger;
 global.images = [];
 
 
 logger.info("Main app started ...");
+
+// switch off the LEDs
+if(config.switchLedsOff){
+   exec("sudo sh -c 'echo 0 > /sys/class/leds/led0/brightness'", { encoding: 'utf-8' });
+   exec("sudo sh -c 'echo 0 > /sys/class/leds/led1/brightness'", { encoding: 'utf-8' });
+}
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 // Keep a global reference of the window object, if you don't, the window will
@@ -27,7 +39,8 @@ function createWindow() {
     height: 600,
     webPreferences: {
       nodeIntegration: true
-    }
+    },
+    frame: false
   });
 
   win.setFullScreen(config.fullscreen);
@@ -41,10 +54,13 @@ function createWindow() {
   var imageWatchdog = new imagewatcher(
     config.imageFolder,
     config.imageCount,
+    config.autoDeleteImages,
     global.images,
     emitter,
-    logger
+    logger,
+    ipcMain
   );
+  imageWatchdog.init()
 
   var bot = new telebot(
     config.botToken,
@@ -52,12 +68,19 @@ function createWindow() {
     imageWatchdog,
     config.showVideos,
     config.whitelistChats,
+    config.whitelistAdmins,
     config.voiceReply,
-    logger
+    logger,
+    emitter,
+    ipcMain,
+    config
   );
 
   var inputHandler = new inputhandler(config, emitter, bot, logger);
   inputHandler.init();
+
+  var commandExecutor = new CommandExecutor(emitter, logger, ipcMain);
+  commandExecutor.init();
 
   if (config.voiceReply !== null) {
     var voiceReply = new voicerecorder(config, emitter, bot, logger, ipcMain);
@@ -67,7 +90,7 @@ function createWindow() {
   // generate scheduler, when times for turning monitor off and on
   // are given in the config file
   if (config.toggleMonitor) {
-    var scheduler = new schedules(config, logger);
+    var scheduler = new schedules(config, screen, logger);
   }
 
   if (config.gpio !== null) {
@@ -76,7 +99,9 @@ function createWindow() {
   }
 
   // Open the DevTools.
-  // win.webContents.openDevTools()
+  if (config.develop) {
+    win.webContents.openDevTools()
+  }
   bot.startBot();
 
   // Emitted when the window is closed.
