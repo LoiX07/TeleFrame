@@ -70,12 +70,21 @@ function createWindow() {
     var scheduler = new schedules(config, logger);
   }
 
+  if (config.gpio !== null) {
+    var gpioHandler = new gpioHandler(config, emitter, logger, ipcMain);
+    gpioHandler.init();
+  }
+
   // Open the DevTools.
   // win.webContents.openDevTools()
   bot.startBot();
 
   // Emitted when the window is closed.
   win.on("closed", () => {
+    // Free GPIO resource if enabled
+    if (typeof gpioHandler != "undefined") {
+      gpioHandler.unexport();
+    }
     // Dereference the window object, usually you would store windows
     // in an array if your app supports multi windows, this is the time
     // when you should delete the corresponding element.
