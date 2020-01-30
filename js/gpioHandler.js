@@ -1,4 +1,4 @@
-const Gpio = require('onoff').Gpio; // Include onoff to interact with the GPIO
+const Gpio = require('pigpio').Gpio; // Include onoff to interact with the GPIO
 
 var gpioHandler = class {
   constructor(config, emitter, logger, ipcMain) {
@@ -8,6 +8,7 @@ var gpioHandler = class {
     this.ipcMain = ipcMain;
     this.ledsMap = new Map(); // Keep a reference of the LED
     this.buttonsMap = new Map(); // Keep a reference of the buttons
+    this.blinkIntervals = new Map(); // Reference of the blinking intervals
   }
 
   init() {
@@ -17,22 +18,14 @@ var gpioHandler = class {
     }
 
     // Definition of the LED outputs
-    initialiseLed("play", config.gpio.playLed);
-    initialiseLed("pause", config.gpio.pauseLed);
-    initialiseLed("record", config.gpio.recordLed);
-
-    if (config.gpio.playLed === config.gpio.pauseLed) {
-      // TODO Add condition to test button and a mode for a unique led for play/pause (continious / blinking)
+    for (var key in config.gpio.leds) {
+      initialiseLed(key,config.gpio.leds[key]);
     }
 
     // Initialisation of the control buttons
-    initialiseButton("previous",config.gpio.previousButton);
-    initialiseButton("pause",config.gpio.pauseButton);
-    initialiseButton("play",config.gpio.playButton);
-    initialiseButton("record",config.gpio.recordButton);
-    initialiseButton("next",config.gpio.nextButton);
-    // TODO Add a stop button to shutdown raspi
-
+    for (var command in config.gpio.buttons) {
+      initialiseButton(command, config.gpio.buttons[command]);
+    }
 
       this.ipcMain.on("recordStarted", function(event, arg) {
         indicateRecording();
@@ -57,48 +50,48 @@ var gpioHandler = class {
 
   initialiseLed(key,gpioNumber) {
     let led;
-    if (Gpio.accessible) {
-      logger.log("Initialisation of the LED ", key)
-      led = new Gpio(gpioNumber, 'out');
-    } else {
-      logger.log("Initialisation of the virtual LED ", key)
-      led = {
-        writeSync: value => {
-          logger.info('Virtual led ' + gpioNumber + 'now uses value: '+ value);
-        }
-      };
-    }
+    logger.log("Initialisation of the LED ", key)
+    led = new Gpio(gpioNumber, {mode: Gpio.OUTPUT});
     this.ledsMap.set(key,led);
   }
 
   initialiseButton(eventRaised,gpioNumber) {
-	  if (Gpio.accessible) {
-      let button;
-      logger.log("Initialisation of the button ", eventRaised);
-		  button = new Gpio(gpioNumber,'in','rising',{debounceTimeout: 10});
-      button.watch((err, value) => {
-        if (err) {
-          this.logger.error(err);
-          return;
-        }
-        this.emitter.send(eventRaised);
-      }
-      this.buttonsMap.set(eventRaised,button);
-    } else {
-      logger.log("Non initialisation of the button ", eventRaised);
-    }
+	  let button;
+    logger.log("Initialisation of the button ", eventRaised);
+    button = new Gpio(gpioNumber, {
+      mode: Gpio.INPUT,
+      pullUpDown: Gpio.PUD_UP,
+      edge: Gpio.FALLING_EDGE
+    });
+    
+    // Level must be stable for 10 ms before an alert event is emitted
+    button.glitchFilter(10000);
+
+    button.on('interrupt', (level) => {
+      this.emitter.send(eventRaised);
+    });
+    this.buttonsMap.set(eventRaised, button);
   }
 
   indicatePlaying() {
     this.logger.info("GPIO indicate playing");
+    // Condition to test button and a mode for a unique led for play/pause (continious / blinking)
+    if (config.gpio.leds["play"] === config.gpio.leds["pause"]) {
+      endBlink(this.ledsMap.get("play"));
+    } else {
+      this.ledsMap.get("pause").writeSync(0);
+    }
     this.ledsMap.get("play").writeSync(1);
-    this.ledsMap.get("pause").writeSync(0);
   }
 
   indicatePaused() {
     this.logger.info("GPIO indicate pause");
-    this.ledsMap.get("play").writeSync(0);
-    this.ledsMap.get("pause").writeSync(1);
+    if (config.gpio.leds["play"] === config.gpio.leds["pause"]) {
+      blinkLed(this.ledsMap.get("play"));
+    } else {
+      this.ledsMap.get("play").writeSync(0);
+      this.ledsMap.get("pause").writeSync(1);
+    }
   }
 
   indicateRecording() {
@@ -110,22 +103,36 @@ var gpioHandler = class {
     this.logger.info("GPIO indicate record stopped")
     this.ledsMap.get("record").writeSync(0);
   }
+  
+  blinkLed(led) { // Function to blinking led
+  }
+
+  startBlink(led) { // Function to start blinking
+    this.blinkIntervals[led] = setInterval((led) => led.writeSync(led.readSync() ^ 1), config.gpio.blinkInterval); // Inverse led state
+  }
+  
+  endBlink(led) { // Function to stop blinking
+    clearInterval(this.blinkIntervals[led]); // Stop blink interval 
+    led.writeSync(0); // Turn LED off
+  }
 
   unexport() {
-    if (Gpio.accessible) {
-      for (var [key, led] of this.ledsMap) {
-        // Turn LED off
-        this.logger.info("Turn off led "+key);
-        led.writeSync(0);
-        // Unexport led GPIO to free resources
-        this.logger.info("Unexport led "+key);
-        led.unexport()
-      }
-      for (var [key, button] of this.buttonsMap) {
-        // Unexport button GPIO to free resources
-        this.logger.info("Unexport button "+key);
-        button.unexport();
-      }
+    for (var [key, interval] of this.blinkIntervals) {
+      // Stop blinking led
+      clearInterval(interval);
+    }
+    for (var [key, led] of this.ledsMap) {
+      // Turn LED off
+      this.logger.info("Turn off led "+key);
+      led.writeSync(0);
+      // Unexport led GPIO to free resources
+      this.logger.info("Unexport led "+key);
+      led.unexport()
+    }
+    for (var [key, button] of this.buttonsMap) {
+      // Unexport button GPIO to free resources
+      this.logger.info("Unexport button "+key);
+      button.unexport();
     }
   }
 

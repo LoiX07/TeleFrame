@@ -8,6 +8,7 @@ const voicerecorder = require("./js/voiceRecorder");
 const schedules = require("./js/schedules");
 const CommandExecutor = require("./js/systemCommands");
 const {config, screen} = require("./js/configuration");
+const pigpio = require('pigpio');
 
 logger.info("Configuring for: " +  screen.name);
 
@@ -19,6 +20,11 @@ global.images = [];
 
 
 logger.info("Main app started ...");
+
+// pigpio C library initialized (requiered before another SIGINT handler is defined)
+if (config.gpio !== null) {
+  pigpio.initialize();
+}
 
 // switch off the LEDs
 if(config.switchLedsOff){
@@ -107,6 +113,9 @@ function createWindow() {
     // Free GPIO resource if enabled
     if (typeof gpioHandler != "undefined") {
       gpioHandler.unexport();
+    }
+    if (config.gpio !== null) {
+      pigpio.terminate();
     }
     // Dereference the window object, usually you would store windows
     // in an array if your app supports multi windows, this is the time

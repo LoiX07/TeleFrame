@@ -173,24 +173,32 @@ var defaultConfig = {
 
 	// Defines the GPIO used
 	gpio: {
-		// #GPIO of the LED "playing"
-    playLed: 1, 
-		// #GPIO of the LED "paused"
-    pauseLed: 2,
-		// #GPIO of the LED "recording"
-    recordLed: 3,
-		// #GPIO of the button "previous"
-    previousButton: 4,
-		// #GPIO of the button "pause"
-    pauseButton: 5,
-		// #GPIO of the button "play"
-    playButton: 6,
-		// #GPIO of the button "record"
-    recordButton: 7,
-		// #GPIO of the button "next"
-    nextButton: 8 
+    // Defines the GPIO of leds connected
+    leds: { 
+      // #GPIO of the LED "playing"
+      "play": 1, 
+		  // #GPIO of the LED "paused"
+      "pause": 2,
+		  // #GPIO of the LED "recording"
+      "record": 3
+    },
+    // Defines the GPIO of the buttons connected
+		buttons: {// 
+      // #GPIO of the button "previous"
+      "previous": 4,
+		  // #GPIO of the button "pause"
+      "pause": 5,
+		  // #GPIO of the button "play"
+      "play": 6,
+		  // #GPIO of the button "record"
+      "record": 7,
+		  // #GPIO of the button "next"
+      "next": 8
+      // #GPIO the the button "shutdown"
+      "shutdown": 9
+    },
+    blinkInterval:250 // Blink interval in ms 
   }
- 
 
 };
 

@@ -45,13 +45,18 @@
     "maxRecordTime": 60000
   },
   "gpio": {
-    "playLed": 1, 
-    "pauseLed": 2,
-    "recordLed": 3,
-    "previousButton": 4,
-    "pauseButton": 5,
-    "playButton": 6,
-    "recordButton": 7,
-    "nextButton": 8
+    "leds": {
+	    "play": 1, 
+    	"pause": 2,
+      "record": 3
+    },
+    "buttons": {
+      "previous": 4,
+      "pause": 5,
+      "play": 6,
+      "record": 7,
+      "next": 8,
+      "shutdown": 9
+    }
   }
 }
