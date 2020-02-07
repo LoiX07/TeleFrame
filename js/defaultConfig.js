@@ -196,7 +196,7 @@ var defaultConfig = {
 		  // #GPIO of the button "record"
       "record": 7,
 		  // #GPIO of the button "next"
-      "next": 8
+      "next": 8,
       // #GPIO the the button "shutdown"
       "shutdown": 9
     },
